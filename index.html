@@ -3,27 +3,51 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <title>Symulator Młodego Gniewnego — E46</title>
+    <title>Symulator Młodego Gniewnego — Tor Kielce</title>
     <link rel="stylesheet" href="/src/style.css" />
   </head>
   <body>
     <canvas id="view"></canvas>
     <header id="hud">
-      <p class="kicker">Etap 1 · podgląd modelu</p>
-      <h1>Symulator Młodego Gniewnego</h1>
-      <p class="sub">BMW M3 Coupe (E46), czysty model seryjny.</p>
+      <div>
+        <p class="kicker">Tor Kielce</p>
+        <h1>Symulator Młodego Gniewnego</h1>
+      </div>
+      <div class="stats">
+        <p><span id="speed">0</span> <small>km/h</small></p>
+        <p>Drift <strong id="drift">0</strong> <span id="combo">—</span></p>
+        <p>Rekord <strong id="best">0</strong></p>
+        <p id="pad">Podłącz pad albo użyj dotyku</p>
+      </div>
+      <button id="credits-btn" type="button">Twórcy</button>
     </header>
-    <footer id="dock">
-      <p class="hint">Przeciągnij, żeby obrócić. Scroll albo gest — zoom.</p>
-      <p class="credit">
-        BMW M3 Coupe (E46) by
-        <a href="https://sketchfab.com/Car2022">Mona x Supercars</a>
-        is licensed under
-        <a href="https://creativecommons.org/licenses/by/4.0/">Creative Commons Attribution 4.0</a>.
-        <a href="https://sketchfab.com/3d-models/bmw-m3-coupe-e46-f5f00aecf89845709d02be03a8007752">Source</a>.
-      </p>
-      <div class="row" id="poses"></div>
-    </footer>
+    <div id="credits" hidden>
+      <div class="card">
+        <h2>Twórcy</h2>
+        <p>
+          BMW M3 Coupe (E46) by
+          <a href="https://sketchfab.com/Car2022">Mona x Supercars</a>
+          is licensed under
+          <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>.
+          <a href="https://sketchfab.com/3d-models/bmw-m3-coupe-e46-f5f00aecf89845709d02be03a8007752">Model</a>.
+        </p>
+        <p>Tor: Tor Kielce (Miedziana Góra). Geometria © OpenStreetMap contributors, ODbL.</p>
+        <button id="credits-close" type="button">Zamknij</button>
+      </div>
+    </div>
+    <div id="touch">
+      <div id="steer-pad" class="pad">
+        <span>Lewo</span>
+        <span>Kierownica</span>
+        <span>Prawo</span>
+      </div>
+      <div class="actions">
+        <button id="btn-gas" type="button">Gaz</button>
+        <button id="btn-brake" type="button">Hamulec</button>
+        <button id="btn-hand" type="button">Ręczny</button>
+        <button id="btn-reset" type="button">Reset</button>
+      </div>
+    </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
