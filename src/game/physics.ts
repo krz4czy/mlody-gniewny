@@ -18,12 +18,13 @@ export type DriveInput = {
   handbrake: boolean;
 };
 
-const MASS = 1450;
+/** Default GTR: ~450 KM, lighter, stiffer, more grip. */
+const MASS = 1280;
 const LF = 1.42;
 const LR = 1.3;
-const INERTIA = 2100;
-const MU_F = 1.42;
-const MU_R = 1.12;
+const INERTIA = 1850;
+const MU_F = 1.62;
+const MU_R = 1.3;
 const GRAV = 9.81;
 const WHEEL_R = 0.33;
 
@@ -46,7 +47,7 @@ export function stepPhys(p: Phys, input: DriveInput, dt: number, grip: number) {
   const throttle = Math.min(1, Math.max(0, input.throttle));
   const brake = Math.min(1, Math.max(0, input.brake));
   const steerIn = Math.min(1, Math.max(-1, input.steer));
-  const targetSteer = -steerIn * 0.52;
+  const targetSteer = -steerIn * 0.72;
   p.steer += (targetSteer - p.steer) * Math.min(1, dt * 8);
 
   const fwdX = Math.sin(p.yaw);
@@ -59,7 +60,7 @@ export function stepPhys(p: Phys, input: DriveInput, dt: number, grip: number) {
 
   const loadF = MASS * GRAV * (LR / (LF + LR));
   const loadR = MASS * GRAV * (LF / (LF + LR));
-  const transfer = Math.min(0.28, Math.max(-0.28, (throttle - brake) * 0.22));
+  const transfer = Math.min(0.16, Math.max(-0.16, (throttle - brake) * 0.12));
   const nF = loadF * (1 - transfer);
   const nR = loadR * (1 + transfer);
 
@@ -77,7 +78,7 @@ export function stepPhys(p: Phys, input: DriveInput, dt: number, grip: number) {
   const fyF = -Math.sign(aF || 1) * latCurve(aF) * muF * nF * pace;
   const fyR = -Math.sign(aR || 1) * latCurve(aR) * muR * nR * pace;
 
-  const drive = throttle * 14000 * Math.max(0, 1 - speed / 58);
+  const drive = throttle * 22800 * Math.max(0, 1 - speed / 58);
   const roll = 90 + speed * 12 + speed * speed * 0.32;
   let fx = drive - Math.sign(vFwd || 1) * (roll + brake * 11000);
   if (input.handbrake) fx -= Math.sign(vFwd || 1) * 4200;
