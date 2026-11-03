@@ -1,7 +1,8 @@
 import * as THREE from "three";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { loadCar, type CarWheel } from "../car/loadCar";
-import { readInput, type DriveInput } from "./input";
+import { readInput, readPad, type DriveInput } from "./input";
+import { getScreen, pollPause, setScreen } from "./shell";
 import { createPhys, forwardOf, stepPhys, type Phys } from "./physics";
 import { createTrack, surfaceAt, type Track } from "./track";
 
@@ -122,6 +123,8 @@ export async function startGame(canvas: HTMLCanvasElement) {
 
   const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 800);
   const demo = new URLSearchParams(location.search).get("demo");
+  if (demo) setScreen("play");
+  else setScreen("menu");
   const phys = createPhys(track.start.x, track.start.z, track.start.yaw);
   let drift = 0;
   let combo = 1;
@@ -211,6 +214,20 @@ export async function startGame(canvas: HTMLCanvasElement) {
   document.body.dataset.ready = "1";
 
   const tick = () => {
+    const playing = getScreen() === "play";
+    pollPause(readPad().options);
+    if (!playing && !demo) {
+      clock.getDelta();
+      placeCar();
+      const f0 = forwardOf(phys.yaw);
+      camera.up.set(0, 1, 0);
+      camera.position.set(phys.x - f0.x * 8, 3.2, phys.z - f0.z * 8);
+      camera.lookAt(phys.x, 0.8, phys.z);
+      renderer.render(scene, camera);
+      if (!document.body.dataset.shot) document.body.dataset.shot = "menu";
+      requestAnimationFrame(tick);
+      return;
+    }
     simAcc = Math.min(0.25, simAcc + clock.getDelta());
     const dt = 1 / 60;
     let steps = 0;

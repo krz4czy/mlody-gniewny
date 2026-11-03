@@ -19,8 +19,27 @@
         <p>Rekord <strong id="best">0</strong></p>
         <p id="pad">Podłącz pad albo użyj dotyku</p>
       </div>
-      <button id="credits-btn" type="button">Twórcy</button>
+      <button id="btn-pause" type="button" hidden aria-label="Pauza">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="5" width="4" height="14" /><rect x="14" y="5" width="4" height="14" /></svg>
+      </button>
     </header>
+    <div id="screen-menu" class="sheet">
+      <h2>Symulator Młodego Gniewnego</h2>
+      <div class="stack">
+        <button type="button" data-screen="play">Graj</button>
+        <button type="button" data-screen="garage">Garaż</button>
+        <button type="button" data-screen="settings">Ustawienia</button>
+        <button type="button" data-screen="credits">Twórcy</button>
+      </div>
+    </div>
+    <div id="screen-settings" class="sheet" hidden>
+      <h2>Ustawienia</h2>
+      <button type="button" data-screen="menu">Wróć</button>
+    </div>
+    <div id="screen-garage" class="sheet" hidden>
+      <h2>Garaż</h2>
+      <button type="button" data-screen="menu">Wróć</button>
+    </div>
     <div id="credits" hidden>
       <div class="card">
         <h2>Twórcy</h2>

@@ -41,7 +41,7 @@ h1 { margin: 0; font-size: clamp(18px, 3vw, 28px); letter-spacing: -0.03em; }
 .stats p { margin: 0 0 2px; }
 .stats #speed { font-size: 28px; font-weight: 700; }
 #pad { color: var(--muted); font-size: 12px; }
-#credits-btn, #credits-close, .actions button {
+#btn-pause, #credits-close, .actions button, .stack button, .sheet button {
   pointer-events: auto;
   border: 1px solid var(--line);
   background: var(--bg);
@@ -66,6 +66,39 @@ h1 { margin: 0; font-size: clamp(18px, 3vw, 28px); letter-spacing: -0.03em; }
   border-radius: 16px;
 }
 .card a { color: var(--amber); }
+
+#hud[hidden], #touch[hidden], .sheet[hidden], #btn-pause[hidden] { display: none; }
+#btn-pause {
+  position: fixed;
+  top: calc(10px + env(safe-area-inset-top));
+  right: calc(12px + env(safe-area-inset-right));
+  z-index: 6;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+}
+#btn-pause svg { width: 18px; height: 18px; fill: currentColor; pointer-events: none; }
+.sheet {
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  z-index: 5;
+  max-height: min(70vh, 520px);
+  overflow: auto;
+  padding: 16px 16px calc(16px + env(safe-area-inset-bottom));
+  background: rgba(12, 12, 12, 0.9);
+  color: var(--ink);
+  border-radius: 18px 18px 0 0;
+}
+.sheet h2 { margin: 0 0 12px; font-size: 22px; }
+.stack { display: grid; gap: 8px; }
+.stack button, .sheet button[data-screen="menu"] {
+  width: 100%;
+  min-height: 48px;
+  font-size: 18px;
+  border-radius: 12px;
+}
 
 #touch {
   position: fixed;

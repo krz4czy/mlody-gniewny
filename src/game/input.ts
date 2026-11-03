@@ -117,8 +117,17 @@ function gamepadInput(): DriveInput | null {
     brake: trigger(6, 4),
     steer,
     handbrake: Boolean(cross),
-    reset: Boolean(btn(3)?.pressed || btn(9)?.pressed),
+    reset: Boolean(btn(3)?.pressed),
     source: "pad",
+  };
+}
+
+export function readPad() {
+  const pads = navigator.getGamepads?.();
+  const pad = pads ? [...pads].find((g) => g && g.connected) : null;
+  return {
+    connected: Boolean(pad),
+    options: Boolean(pad?.buttons[9]?.pressed),
   };
 }
 
