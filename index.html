@@ -36,16 +36,20 @@
       </div>
     </div>
     <div id="touch">
-      <div id="steer-pad" class="pad">
-        <span>Lewo</span>
-        <span>Kierownica</span>
-        <span>Prawo</span>
-      </div>
+      <div id="steer-pad" class="pad" role="slider" aria-label="Kierownica" aria-valuemin="-1" aria-valuemax="1"></div>
       <div class="actions">
-        <button id="btn-gas" type="button">Gaz</button>
-        <button id="btn-brake" type="button">Hamulec</button>
-        <button id="btn-hand" type="button">Ręczny</button>
-        <button id="btn-reset" type="button">Reset</button>
+        <button id="btn-gas" type="button" aria-label="Gaz">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4l8 14H4z" /></svg>
+        </button>
+        <button id="btn-brake" type="button" aria-label="Hamulec">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="9" width="16" height="6" rx="1.5" /></svg>
+        </button>
+        <button id="btn-hand" type="button" aria-label="Ręczny">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 20V10l5-6 5 6v10H7z" /></svg>
+        </button>
+        <button id="btn-reset" type="button" aria-label="Reset">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6V3L7 8l5 5V10a5 5 0 1 1-4.3 2.5l-1.8 1A7 7 0 1 0 12 6z" /></svg>
+        </button>
       </div>
     </div>
     <script type="module" src="/src/main.ts"></script>

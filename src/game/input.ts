@@ -28,7 +28,17 @@ export const touch = {
   active: false,
 };
 
+function blockCallout(el: HTMLElement | null) {
+  if (!el) return;
+  const stop = (e: Event) => e.preventDefault();
+  el.addEventListener("touchstart", stop, { passive: false });
+  el.addEventListener("contextmenu", stop);
+  el.addEventListener("selectstart", stop);
+}
+
 export function bindTouch(root: HTMLElement) {
+  blockCallout(root.querySelector("#touch"));
+  blockCallout(root.querySelector("#view"));
   const steerPad = root.querySelector<HTMLElement>("#steer-pad");
   const bindHold = (sel: string, flag: "throttle" | "brake" | "handbrake" | "reset") => {
     const el = root.querySelector<HTMLElement>(sel);
@@ -59,6 +69,7 @@ export function bindTouch(root: HTMLElement) {
     touch.active = true;
   };
   steerPad.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
     steerPad.setPointerCapture(e.pointerId);
     move(e);
   });
