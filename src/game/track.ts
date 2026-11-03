@@ -122,11 +122,11 @@ function barriers(frames: Frame[], side: 1 | -1) {
     const nx = -tz / len;
     const nz = tx / len;
     const bank = (a.bank + b.bank) / 2;
-    const inset = HALF_OUTER + 0.45;
-    const y = (a.y + b.y) / 2 + Math.sin(bank) * inset * side + 0.42;
-    dummy.position.set((a.x + b.x) / 2 + nx * inset * side, y, (a.z + b.z) / 2 + nz * inset * side);
-    dummy.rotation.set(0, Math.atan2(tx, tz), 0);
-    dummy.scale.set(len * 1.02, 1, 1);
+    const inset = HALF_OUTER + 0.35;
+    const edgeY = (a.y + b.y) / 2 + Math.sin(bank) * inset * side + 0.1;
+    dummy.position.set((a.x + b.x) / 2 + nx * inset * side, edgeY + 0.36, (a.z + b.z) / 2 + nz * inset * side);
+    dummy.rotation.set(0, Math.atan2(-tz, tx), 0);
+    dummy.scale.set(len * 1.08, 1, 1);
     dummy.updateMatrix();
     mesh.setMatrixAt(i, dummy.matrix);
   }

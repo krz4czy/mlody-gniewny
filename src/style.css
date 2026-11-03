@@ -84,7 +84,7 @@ h1 { margin: 0; font-size: clamp(18px, 3vw, 28px); letter-spacing: -0.03em; }
   position: fixed;
   left: 0; right: 0; bottom: 0;
   z-index: 5;
-  max-height: min(70vh, 520px);
+  max-height: min(52vh, 420px);
   overflow: auto;
   padding: 16px 16px calc(16px + env(safe-area-inset-bottom));
   background: rgba(12, 12, 12, 0.9);
