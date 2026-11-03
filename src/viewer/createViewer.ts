@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
-import { createCar } from "../car/buildCar";
+import { loadCar } from "../car/loadCar";
 import { poseByName, type Pose } from "./poses";
 
 export type Viewer = {
@@ -127,9 +127,6 @@ export function createViewer(canvas: HTMLCanvasElement): Viewer {
   const blob = contactShadow();
   if (blob) scene.add(blob);
 
-  const car = createCar();
-  scene.add(car);
-
   const params = new URLSearchParams(location.search);
   const initial = poseByName(params.get("pose"));
   const apply = (pose: Pose) => {
@@ -148,14 +145,14 @@ export function createViewer(canvas: HTMLCanvasElement): Viewer {
   };
   window.addEventListener("resize", onResize);
 
-  let ready = false;
+  void loadCar().then((car) => {
+    scene.add(car);
+    document.body.dataset.ready = "1";
+  });
+
   const tick = () => {
     controls.update();
     renderer.render(scene, camera);
-    if (!ready) {
-      ready = true;
-      document.body.dataset.ready = "1";
-    }
     requestAnimationFrame(tick);
   };
   tick();

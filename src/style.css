@@ -56,14 +56,17 @@ h1 {
   text-shadow: 0 2px 16px rgba(0, 0, 0, 0.45);
 }
 
-.sub, .hint {
+.sub, .hint, .credit {
   margin: 6px 0 0;
-  max-width: 38rem;
+  max-width: 40rem;
   color: var(--muted);
   font-size: 13.5px;
   line-height: 1.4;
   text-shadow: 0 1px 8px rgba(0, 0, 0, 0.6);
 }
+
+.credit { font-size: 12px; pointer-events: auto; }
+.credit a { color: var(--ink); }
 
 .row {
   display: flex;

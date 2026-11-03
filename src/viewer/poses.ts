@@ -11,20 +11,20 @@ export const POSES: Pose[] = [
   {
     id: "front34",
     label: "Przód 3/4",
-    pos: [-2.85, 1.22, 3.25],
-    target: [0.05, 0.62, 0.15],
+    pos: [-4.4, 1.7, 5.6],
+    target: [0, 0.7, 0],
   },
   {
     id: "rear34",
     label: "Tył 3/4",
-    pos: [-2.75, 1.18, -3.4],
-    target: [0.0, 0.66, -0.2],
+    pos: [-4.3, 1.65, -5.5],
+    target: [0, 0.7, 0],
   },
   {
     id: "side",
     label: "Bok",
-    pos: [-5.15, 1.12, 0.35],
-    target: [0, 0.68, 0],
+    pos: [-8.4, 1.55, 0.15],
+    target: [0, 0.7, 0],
   },
 ];
 

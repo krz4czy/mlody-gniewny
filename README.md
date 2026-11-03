@@ -2,9 +2,7 @@
 
 Przeglądarkowa gra driftowa (widok z telefonu, poziomo wygodniej). Ten etap to **wygląd auta** — bez toru, fizyki i sterowania.
 
-Auto: **BMW E46 sedan po liftingu (LCI, 2001–2005)** — angel eyes, nerki, tylne lampy LCI. Nadwozie to „gruz”: spłowiały czarny lakier, rdza progów i nadkoli, dziury, wgniecenia, drzwi kierowcy w podkładzie, klapa w szpachli, urwane naroże zderzaka na trytytkach, taśma na lampie, krzywy spoiler, tablica `WGM 6RUZ`.
-
-Geometria jest proceduralna (Three.js). Żadnych zrzutów modeli.
+Auto: **BMW M3 Coupe (E46)** — model [Mona x Supercars](https://sketchfab.com/Car2022), licencja [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Plik: `public/models/bmw-m3-coupe-e46.glb`. Koła nie są osobnymi meshami.
 
 ## Uruchomienie
 
@@ -26,6 +24,6 @@ Ujęcia podglądu: `?pose=front34`, `rear34`, `side`. `?ui=0` chowa nakładkę.
 
 Kod jest podzielony tak, żeby dołożyć kolejne etapy bez ruszania karoserii:
 
-- `src/car/buildCar.ts` — model; grupa `e46` ma `userData.model`
+- `src/car/loadCar.ts` — wczytanie GLB; grupa `e46`
 - `src/viewer/` — orbita, światło, kadry
 - później: tor, fizyka driftu, gamepad (DualSense / Gamepad API) i sterowanie dotykowe
