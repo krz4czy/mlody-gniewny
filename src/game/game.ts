@@ -167,8 +167,18 @@ export async function startGame(canvas: HTMLCanvasElement) {
   window.addEventListener("keydown", ensureAudio, { once: true });
 
   const placeCar = () => {
-    car.root.position.set(phys.x, 0, phys.z);
+    const g = surfaceAt(track, phys.x, phys.z);
+    const fx = Math.sin(phys.yaw);
+    const fz = Math.cos(phys.yaw);
+    const ahead = surfaceAt(track, phys.x + fx * 2.2, phys.z + fz * 2.2);
+    const side = surfaceAt(track, phys.x + Math.cos(phys.yaw) * 1.2, phys.z - Math.sin(phys.yaw) * 1.2);
+    const pitch = Math.atan2(ahead.y - g.y, 2.2);
+    const roll = Math.atan2(side.y - g.y, 1.2);
+    car.root.position.set(phys.x, g.y + 0.02, phys.z);
+    car.root.rotation.order = "YXZ";
     car.root.rotation.y = Math.PI + phys.yaw;
+    car.root.rotation.x = -pitch;
+    car.root.rotation.z = -roll;
     for (const w of car.wheels) {
       w.spin.rotation.x = -phys.wheelSpin;
       w.steer.rotation.z = w.front ? phys.steer : 0;
@@ -202,7 +212,7 @@ export async function startGame(canvas: HTMLCanvasElement) {
     const m = marks[markCursor % marks.length];
     markCursor++;
     m.visible = true;
-    m.position.set(x, 0.06, z);
+    m.position.set(x, surfaceAt(track, x, z).y + 0.05, z);
     m.rotation.y = yaw;
   };
 
@@ -258,13 +268,15 @@ export async function startGame(canvas: HTMLCanvasElement) {
       camera.up.set(0, 1, 0);
       if (getScreen() === "garage") {
         if (!orbiting) showAngle += 0.004;
-        camera.position.set(phys.x + Math.sin(showAngle) * 6.4, 1.7, phys.z + Math.cos(showAngle) * 6.4);
-        camera.lookAt(phys.x, 0.75, phys.z);
+        const gy = surfaceAt(track, phys.x, phys.z).y;
+        camera.position.set(phys.x + Math.sin(showAngle) * 6.4, gy + 1.7, phys.z + Math.cos(showAngle) * 6.4);
+        camera.lookAt(phys.x, gy + 0.75, phys.z);
         document.body.dataset.shot = "garage";
       } else {
         const f0 = forwardOf(phys.yaw);
-        camera.position.set(phys.x - f0.x * 8, 3.2, phys.z - f0.z * 8);
-        camera.lookAt(phys.x, 0.8, phys.z);
+        const gy = surfaceAt(track, phys.x, phys.z).y;
+        camera.position.set(phys.x - f0.x * 8, gy + 3.2, phys.z - f0.z * 8);
+        camera.lookAt(phys.x, gy + 0.8, phys.z);
         if (!document.body.dataset.shot) document.body.dataset.shot = "menu";
       }
       renderer.render(scene, camera);
@@ -299,19 +311,25 @@ export async function startGame(canvas: HTMLCanvasElement) {
         phys.vx *= k;
         phys.vz *= k;
       }
-      if (hit.outside) {
-        const need = -track.halfOuter - hit.outer.signed;
-        phys.x += -hit.outer.tz * need;
-        phys.z += hit.outer.tx * need;
-        const outX = hit.outer.tz;
-        const outZ = -hit.outer.tx;
+      const shove = (need: number, dir: number) => {
+        phys.x += -hit.outer.tz * need * dir;
+        phys.z += hit.outer.tx * need * dir;
+        const outX = hit.outer.tz * dir;
+        const outZ = -hit.outer.tx * dir;
         const outward = phys.vx * outX + phys.vz * outZ;
         if (outward > 0) {
-          phys.vx -= outX * outward * 1.2;
-          phys.vz -= outZ * outward * 1.2;
+          phys.vx -= outX * outward * 1.15;
+          phys.vz -= outZ * outward * 1.15;
         }
-        phys.yawRate *= 0.9;
-      }
+        phys.yawRate *= 0.92;
+      };
+      if (hit.outside) shove(-track.halfOuter - hit.outer.signed, 1);
+      else if (hit.inside) shove(hit.outer.signed - track.halfOuter, -1);
+      const fx = Math.sin(phys.yaw);
+      const fz = Math.cos(phys.yaw);
+      const slope = (surfaceAt(track, phys.x + fx * 2, phys.z + fz * 2).y - hit.y) / 2;
+      phys.vx -= fx * 9.81 * slope * dt;
+      phys.vz -= fz * 9.81 * slope * dt;
     }
     if (steps === 0) {
       requestAnimationFrame(tick);
@@ -363,7 +381,7 @@ export async function startGame(canvas: HTMLCanvasElement) {
       for (const w of car.wheels.filter((wheel) => !wheel.front)) {
         w.steer.getWorldPosition(wheelPos);
         if (markCursor % 2 === 0) dropMark(wheelPos.x, wheelPos.z, phys.yaw);
-        if (Math.random() < 0.7) spawnSmoke(wheelPos.x, 0.25, wheelPos.z);
+        if (Math.random() < 0.7) spawnSmoke(wheelPos.x, surfaceAt(track, wheelPos.x, wheelPos.z).y + 0.25, wheelPos.z);
       }
     }
     for (const s of smokes) {
@@ -398,11 +416,20 @@ export async function startGame(canvas: HTMLCanvasElement) {
       const farCam = getSettings().camera === "far";
       const dist = farCam ? 11.5 : 6.6;
       const camY = farCam ? 4.1 : 2.2;
-      const desired = new THREE.Vector3(phys.x - f.x * dist + f.z * 0.2, camY, phys.z - f.z * dist);
+      const groundY = surfaceAt(track, phys.x, phys.z).y;
+      const desired = new THREE.Vector3(phys.x - f.x * dist + f.z * 0.2, groundY + camY, phys.z - f.z * dist);
       camPos.lerp(desired, Math.min(1, 1 - Math.exp(-4 * dt * steps)));
       camera.position.copy(camPos);
-      look.set(phys.x + f.x * 5, 0.8, phys.z + f.z * 5);
+      look.set(phys.x + f.x * 5, groundY + 0.8, phys.z + f.z * 5);
       camera.lookAt(look);
+      if (shot === "track") {
+        const i = Math.floor(track.frames.length * 0.33);
+        const frame = track.frames[i];
+        const aim = track.frames[Math.min(track.frames.length - 1, i + 10)];
+        camera.position.set(frame.x + frame.tz * 24, frame.y + 8, frame.z - frame.tx * 16);
+        camera.lookAt(aim.x, aim.y + 0.8, aim.z);
+        document.body.dataset.shot = "track";
+      }
       if (demo === "drift" && elapsed > 3.25) document.body.dataset.shot = "drift";
       if (demo === "touch") document.body.dataset.shot = "touch";
     }
