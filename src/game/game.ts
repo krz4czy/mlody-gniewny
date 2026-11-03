@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { loadCar, type CarWheel } from "../car/loadCar";
 import { readInput, readPad, type DriveInput } from "./input";
+import { getSpec, getLook, onGarage } from "./garage";
 import { audioScale, getSettings } from "./settings";
 import { getScreen, pollPause, setScreen } from "./shell";
 import { createPhys, forwardOf, stepPhys, type Phys } from "./physics";
@@ -105,6 +106,7 @@ export async function startGame(canvas: HTMLCanvasElement) {
   scene.add(track.group);
   const car = await loadCar();
   scene.add(car.root);
+  onGarage(() => car.applyLook(getLook()));
 
   const tex = smokeTexture();
   const smokeMat = new THREE.SpriteMaterial({ map: tex ?? undefined, transparent: true, depthWrite: false, color: 0xdedede });
@@ -129,8 +131,11 @@ export async function startGame(canvas: HTMLCanvasElement) {
   let markCursor = 0;
 
   const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 800);
-  const demo = new URLSearchParams(location.search).get("demo");
-  if (demo) setScreen("play");
+  const params = new URLSearchParams(location.search);
+  const demo = params.get("demo");
+  const shot = params.get("shot");
+  if (demo || shot === "track") setScreen("play");
+  else if (shot === "garage") setScreen("garage");
   else setScreen("menu");
   const phys = createPhys(track.start.x, track.start.z, track.start.yaw);
   let drift = 0;
@@ -220,6 +225,22 @@ export async function startGame(canvas: HTMLCanvasElement) {
   placeCar();
   document.body.dataset.ready = "1";
   let appliedQuality = "";
+  let showAngle = 0.8;
+  let orbiting = false;
+  canvas.addEventListener("pointerdown", (e) => {
+    if (getScreen() !== "garage") return;
+    orbiting = true;
+    canvas.setPointerCapture(e.pointerId);
+  });
+  canvas.addEventListener("pointermove", (e) => {
+    if (!orbiting) return;
+    showAngle += e.movementX * 0.01;
+  });
+  const endOrbit = () => {
+    orbiting = false;
+  };
+  canvas.addEventListener("pointerup", endOrbit);
+  canvas.addEventListener("pointercancel", endOrbit);
 
   const tick = () => {
     const quality = getSettings().quality;
@@ -228,16 +249,25 @@ export async function startGame(canvas: HTMLCanvasElement) {
       applyQuality();
     }
     const playing = getScreen() === "play";
-    pollPause(readPad().options);
+    const padMeta = readPad();
+    document.body.classList.toggle("pad-on", padMeta.connected);
+    pollPause(padMeta.options);
     if (!playing && !demo) {
       clock.getDelta();
       placeCar();
-      const f0 = forwardOf(phys.yaw);
       camera.up.set(0, 1, 0);
-      camera.position.set(phys.x - f0.x * 8, 3.2, phys.z - f0.z * 8);
-      camera.lookAt(phys.x, 0.8, phys.z);
+      if (getScreen() === "garage") {
+        if (!orbiting) showAngle += 0.004;
+        camera.position.set(phys.x + Math.sin(showAngle) * 6.4, 1.7, phys.z + Math.cos(showAngle) * 6.4);
+        camera.lookAt(phys.x, 0.75, phys.z);
+        document.body.dataset.shot = "garage";
+      } else {
+        const f0 = forwardOf(phys.yaw);
+        camera.position.set(phys.x - f0.x * 8, 3.2, phys.z - f0.z * 8);
+        camera.lookAt(phys.x, 0.8, phys.z);
+        if (!document.body.dataset.shot) document.body.dataset.shot = "menu";
+      }
       renderer.render(scene, camera);
-      if (!document.body.dataset.shot) document.body.dataset.shot = "menu";
       requestAnimationFrame(tick);
       return;
     }
@@ -258,8 +288,9 @@ export async function startGame(canvas: HTMLCanvasElement) {
       resetLatch = input.reset;
 
       const before = surfaceAt(track, phys.x, phys.z);
-      const grip = before.onAsphalt ? 1 : 1.35;
-      const slip = stepPhys(phys, input, dt, grip);
+      const spec = getSpec();
+      const grip = (before.onAsphalt ? 1 : 1.35) * spec.grip;
+      const slip = stepPhys(phys, input, dt, grip, spec.setup);
       slipAngle = slip.slip;
       vFwd = slip.vFwd;
       const hit = surfaceAt(track, phys.x, phys.z);

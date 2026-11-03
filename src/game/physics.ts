@@ -20,15 +20,34 @@ export type DriveInput = {
   handbrake: boolean;
 };
 
-/** Default GTR: ~450 KM, lighter, stiffer, more grip. */
-const MASS = 1280;
 const LF = 1.42;
 const LR = 1.3;
-const INERTIA = 1850;
-const MU_F = 1.62;
-const MU_R = 1.3;
 const GRAV = 9.81;
 const WHEEL_R = 0.33;
+
+export type Setup = {
+  mass: number;
+  inertia: number;
+  muF: number;
+  muR: number;
+  /** Full-lock angle at rest, radians. Falls off with speed. */
+  lock: number;
+  /** Weight-transfer cap. Lower is stiffer. */
+  stiff: number;
+  /** Peak drive force, newtons. ~KM * 50.72 with the current curve. */
+  force: number;
+};
+
+/** Current GTR numbers. Other setups scale around this. */
+export const GTR_SETUP: Setup = {
+  mass: 1280,
+  inertia: 1850,
+  muF: 1.62,
+  muR: 1.3,
+  lock: 0.64,
+  stiff: 0.16,
+  force: 22800,
+};
 
 function wrap(a: number) {
   return Math.atan2(Math.sin(a), Math.cos(a));
@@ -49,7 +68,7 @@ function clamp(v: number, lo: number, hi: number) {
   return Math.min(hi, Math.max(lo, v));
 }
 
-export function stepPhys(p: Phys, input: DriveInput, dt: number, grip: number) {
+export function stepPhys(p: Phys, input: DriveInput, dt: number, grip: number, setup: Setup = GTR_SETUP) {
   const throttle = Math.min(1, Math.max(0, input.throttle));
   const brake = Math.min(1, Math.max(0, input.brake));
   const steerIn = clamp(input.steer, -1, 1);
@@ -57,7 +76,7 @@ export function stepPhys(p: Phys, input: DriveInput, dt: number, grip: number) {
   const dead = Math.abs(steerIn) < 0.06 ? 0 : steerIn;
   const slew = dt * (2.4 / (1 + speed0 / 30));
   p.steerCmd = clamp(p.steerCmd + clamp(dead - p.steerCmd, -slew, slew), -1, 1);
-  const lock = 0.64 / (1 + speed0 / 50);
+  const lock = setup.lock / (1 + speed0 / 50);
   const targetSteer = -p.steerCmd * lock;
   p.steer += (targetSteer - p.steer) * Math.min(1, dt * (5.2 / (1 + speed0 / 34)));
 
@@ -69,14 +88,14 @@ export function stepPhys(p: Phys, input: DriveInput, dt: number, grip: number) {
   const vLat = p.vx * leftX + p.vz * leftZ;
   const speed = Math.hypot(p.vx, p.vz);
 
-  const loadF = MASS * GRAV * (LR / (LF + LR));
-  const loadR = MASS * GRAV * (LF / (LF + LR));
-  const transfer = Math.min(0.16, Math.max(-0.16, (throttle - brake) * 0.12));
+  const loadF = setup.mass * GRAV * (LR / (LF + LR));
+  const loadR = setup.mass * GRAV * (LF / (LF + LR));
+  const transfer = Math.min(setup.stiff, Math.max(-setup.stiff, (throttle - brake) * setup.stiff * 0.75));
   const nF = loadF * (1 - transfer);
   const nR = loadR * (1 + transfer);
 
-  let muF = MU_F * grip * (input.handbrake ? 0.94 : 1);
-  let muR = MU_R * grip * (1 - throttle * 0.18);
+  let muF = setup.muF * grip * (input.handbrake ? 0.94 : 1);
+  let muR = setup.muR * grip * (1 - throttle * 0.18);
   if (input.handbrake) muR *= 0.64;
   if (brake > 0.2) muF *= 0.9;
 
@@ -88,7 +107,7 @@ export function stepPhys(p: Phys, input: DriveInput, dt: number, grip: number) {
   const fyF = -Math.sign(aF || 1) * latCurve(aF) * muF * nF * pace;
   const fyR = -Math.sign(aR || 1) * latCurve(aR) * muR * nR * pace;
 
-  const drive = throttle * 22800 * Math.max(0, 1 - speed / 58);
+  const drive = throttle * setup.force * Math.max(0, 1 - speed / 58);
   const roll = 90 + speed * 12 + speed * speed * 0.32;
   let fx = drive - Math.sign(vFwd || 1) * (roll + brake * 11000);
   if (input.handbrake) fx -= Math.sign(vFwd || 1) * 4200;
@@ -113,14 +132,14 @@ export function stepPhys(p: Phys, input: DriveInput, dt: number, grip: number) {
 
   const fxTotal = fxF + fxRUse;
   const fyTotal = fyF + fyRUse;
-  p.vx += ((fxTotal * fwdX + fyTotal * leftX) / MASS) * dt;
-  p.vz += ((fxTotal * fwdZ + fyTotal * leftZ) / MASS) * dt;
+  p.vx += ((fxTotal * fwdX + fyTotal * leftX) / setup.mass) * dt;
+  p.vz += ((fxTotal * fwdZ + fyTotal * leftZ) / setup.mass) * dt;
   let vFwd2 = p.vx * fwdX + p.vz * fwdZ;
   let vLat2 = p.vx * leftX + p.vz * leftZ;
   let beta2 = Math.atan2(vLat2, Math.max(3, Math.abs(vFwd2)));
   const slipMag = Math.abs(beta2);
   const yawScale = slipMag > 0.9 ? 0.4 : slipMag > 0.5 ? 0.7 : 1;
-  p.yawRate += ((fyF * LF - fyRUse * LR) / INERTIA) * yawScale * dt;
+  p.yawRate += ((fyF * LF - fyRUse * LR) / setup.inertia) * yawScale * dt;
   if (speed < 4) p.yawRate += p.steer * (4 - speed) * 0.22 * dt;
 
   const opposing = Math.abs(vLat2) > 1.8 && Math.abs(p.steerCmd) > 0.14 && Math.sign(p.steerCmd) !== Math.sign(vLat2);

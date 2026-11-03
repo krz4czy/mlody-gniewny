@@ -97,7 +97,14 @@ h1 { margin: 0; font-size: clamp(18px, 3vw, 28px); letter-spacing: -0.03em; }
 .row input[type="range"] { width: 48%; }
 .choice { display: flex; gap: 6px; }
 .choice button { min-height: 36px; border-radius: 10px; }
-.choice button[aria-pressed="true"] { background: var(--amber); color: #1a1408; }
+.choice button[aria-pressed="true"], #gar-setups button[aria-pressed="true"] { background: var(--amber); color: #1a1408; }
+.stat { display: grid; grid-template-columns: 7.2rem 1fr; gap: 8px; align-items: center; margin: 4px 0; font-size: 13px; }
+.bar { display: block; height: 8px; border-radius: 99px; background: rgba(255,255,255,0.12); overflow: hidden; }
+.bar i { display: block; height: 100%; width: 0; background: var(--amber); }
+.swatches { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 12px; }
+.swatches button { width: 32px; height: 32px; min-height: 32px; padding: 0; border-radius: 50%; border: 2px solid transparent; }
+.swatches button[aria-pressed="true"] { border-color: #fff; }
+#gar-setups button { border-radius: 12px; text-align: left; }
 .stack button, .sheet button[data-screen="menu"] {
   width: 100%;
   min-height: 48px;
@@ -105,45 +112,64 @@ h1 { margin: 0; font-size: clamp(18px, 3vw, 28px); letter-spacing: -0.03em; }
   border-radius: 12px;
 }
 
+body.pad-on #touch { display: none; }
 #touch {
   position: fixed;
   left: 0; right: 0; bottom: 0;
   z-index: 3;
   display: flex;
   justify-content: space-between;
+  align-items: flex-end;
   gap: 12px;
-  padding: 10px 12px 14px;
+  padding:
+    8px
+    calc(14px + env(safe-area-inset-right))
+    calc(12px + env(safe-area-inset-bottom))
+    calc(14px + env(safe-area-inset-left));
   pointer-events: none;
 }
-.pad, .actions { pointer-events: auto; }
+.left-thumb, .actions { pointer-events: none; display: flex; }
+.left-thumb { flex-direction: column; align-items: flex-start; gap: 8px; width: min(48vw, 320px); }
+.pad, .actions button, #btn-reset { pointer-events: auto; }
 .pad {
-  width: min(42vw, 280px);
-  height: 108px;
-  border-radius: 18px;
-  border: 1px solid var(--line);
-  background: rgba(10, 10, 10, 0.35);
+  width: 100%;
+  height: min(30vh, 168px);
+  min-height: 112px;
+  border-radius: 32px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.12);
   display: grid;
   place-items: center;
   touch-action: none;
 }
 .pad::after {
   content: "";
-  width: 34px;
-  height: 34px;
+  width: 54px;
+  height: 54px;
   border-radius: 50%;
-  background: rgba(246, 243, 236, 0.45);
+  background: rgba(246, 243, 236, 0.55);
+  transform: translateX(calc(var(--steer, 0) * min(28vw, 110px)));
 }
-.actions { display: flex; flex-direction: column; gap: 8px; width: min(28vw, 150px); }
-.actions button {
-  border-radius: 14px;
-  min-height: 42px;
+.actions {
+  display: grid;
+  grid-template-columns: 1fr 1.15fr;
+  grid-template-areas: "hand hand" "brake gas";
+  gap: 10px;
+  width: min(46vw, 250px);
+}
+.actions button, #btn-reset {
+  border: 0;
+  border-radius: 28px;
   display: grid;
   place-items: center;
   color: #fff;
+  background: rgba(20, 20, 20, 0.28);
 }
-.actions svg { width: 22px; height: 22px; fill: currentColor; pointer-events: none; }
-#btn-gas { background: rgba(46, 120, 62, 0.85); }
-#btn-hand { background: rgba(140, 64, 28, 0.88); }
+.actions svg, #btn-reset svg { width: 32px; height: 32px; fill: currentColor; pointer-events: none; }
+#btn-reset { width: 52px; height: 52px; border-radius: 50%; background: rgba(255, 255, 255, 0.14); }
+#btn-hand { grid-area: hand; height: 76px; background: rgba(176, 78, 32, 0.55); }
+#btn-brake { grid-area: brake; height: 92px; background: rgba(170, 48, 48, 0.5); }
+#btn-gas { grid-area: gas; height: 104px; background: rgba(46, 140, 72, 0.55); }
 
 @media (max-width: 720px) {
   h1 { font-size: 16px; }

@@ -19,9 +19,29 @@ export type CarWheel = {
   front: boolean;
 };
 
+export type Finish = "gloss" | "metallic" | "pearl" | "matte" | "chrome";
+
+export type Look = {
+  finish: Finish;
+  paint: string;
+  rim: string;
+  ride: number;
+  spoiler: boolean;
+  tint: number;
+};
+
 export type CarVisual = {
   root: THREE.Group;
   wheels: CarWheel[];
+  applyLook: (look: Look) => void;
+};
+
+const FINISH: Record<Finish, { metalness: number; roughness: number; clearcoat: number; iridescence: number }> = {
+  gloss: { metalness: 0.12, roughness: 0.16, clearcoat: 0.85, iridescence: 0 },
+  metallic: { metalness: 0.84, roughness: 0.3, clearcoat: 0.4, iridescence: 0 },
+  pearl: { metalness: 0.38, roughness: 0.2, clearcoat: 1, iridescence: 0.85 },
+  matte: { metalness: 0, roughness: 0.94, clearcoat: 0, iridescence: 0 },
+  chrome: { metalness: 1, roughness: 0.04, clearcoat: 1, iridescence: 0 },
 };
 
 function materialName(mesh: THREE.Mesh) {
@@ -164,5 +184,63 @@ export async function loadCar(): Promise<CarVisual> {
       mesh.receiveShadow = true;
     }
   });
-  return { root, wheels };
+
+  const body: THREE.MeshPhysicalMaterial[] = [];
+  const rims: THREE.MeshStandardMaterial[] = [];
+  let glass: THREE.MeshStandardMaterial | null = null;
+  const bodyMeshes: THREE.Object3D[] = [];
+  model.traverse((obj: THREE.Object3D) => {
+    const mesh = obj as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    const mat = mesh.material as THREE.MeshStandardMaterial;
+    const name = mat?.name ?? "";
+    if (name === "M305") {
+      const paint = new THREE.MeshPhysicalMaterial({ color: mat.color, roughness: 0.2, metalness: 0.2 });
+      mesh.material = paint;
+      body.push(paint);
+      bodyMeshes.push(mesh);
+    } else if (name === "llanta" || name === "M305_rin" || name === "disk") {
+      const rim = mat.clone();
+      mesh.material = rim;
+      rims.push(rim);
+    } else if (name === "vidrios") {
+      glass = mat.clone();
+      glass.transparent = true;
+      mesh.material = glass;
+    }
+  });
+
+  const spoilerMat = new THREE.MeshStandardMaterial({ color: 0x141414, metalness: 0.45, roughness: 0.4 });
+  const spoiler = new THREE.Group();
+  const wing = new THREE.Mesh(new THREE.BoxGeometry(64, 7, 2.4), spoilerMat);
+  wing.position.set(0, -79, 51);
+  const leg = new THREE.Mesh(new THREE.BoxGeometry(2.2, 5, 12), spoilerMat);
+  leg.position.set(-26, -77, 45);
+  const legR = leg.clone();
+  legR.position.x = 26;
+  spoiler.add(wing, leg, legR);
+  anchor.add(spoiler);
+
+  const applyLook = (look: Look) => {
+    const fin = FINISH[look.finish] ?? FINISH.gloss;
+    for (const paint of body) {
+      paint.color.set(look.paint);
+      paint.metalness = fin.metalness;
+      paint.roughness = fin.roughness;
+      paint.clearcoat = fin.clearcoat;
+      paint.iridescence = fin.iridescence;
+    }
+    for (const rim of rims) rim.color.set(look.rim);
+    if (glass) {
+      const tint = Math.min(1, Math.max(0, look.tint));
+      glass.color.setRGB(0.15 + (1 - tint) * 0.45, 0.2 + (1 - tint) * 0.55, 0.22 + (1 - tint) * 0.4);
+      glass.opacity = 0.28 + tint * 0.62;
+    }
+    const drop = Math.min(1, Math.max(0, look.ride)) * 5.5;
+    for (const mesh of bodyMeshes) mesh.position.z = -drop;
+    spoiler.position.z = -drop;
+    spoiler.visible = look.spoiler;
+  };
+
+  return { root, wheels, applyLook };
 }
