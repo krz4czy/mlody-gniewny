@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { loadCar, type CarWheel } from "../car/loadCar";
 import { readInput, readPad, type DriveInput } from "./input";
+import { audioScale, getSettings } from "./settings";
 import { getScreen, pollPause, setScreen } from "./shell";
 import { createPhys, forwardOf, stepPhys, type Phys } from "./physics";
 import { createTrack, surfaceAt, type Track } from "./track";
@@ -66,7 +67,12 @@ function smokeTexture() {
 
 export async function startGame(canvas: HTMLCanvasElement) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+  const applyQuality = () => {
+    const low = getSettings().quality === "low";
+    renderer.setPixelRatio(low ? 1 : Math.min(window.devicePixelRatio, 1.5));
+    renderer.shadowMap.enabled = !low;
+    sun.castShadow = !low;
+  };
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -93,6 +99,7 @@ export async function startGame(canvas: HTMLCanvasElement) {
   sun.shadow.camera.top = 80;
   sun.shadow.camera.bottom = -80;
   scene.add(sun, sun.target);
+  applyQuality();
 
   const track = createTrack();
   scene.add(track.group);
@@ -212,8 +219,14 @@ export async function startGame(canvas: HTMLCanvasElement) {
   window.addEventListener("resize", onResize);
   placeCar();
   document.body.dataset.ready = "1";
+  let appliedQuality = "";
 
   const tick = () => {
+    const quality = getSettings().quality;
+    if (quality !== appliedQuality) {
+      appliedQuality = quality;
+      applyQuality();
+    }
     const playing = getScreen() === "play";
     pollPause(readPad().options);
     if (!playing && !demo) {
@@ -238,7 +251,9 @@ export async function startGame(canvas: HTMLCanvasElement) {
       simAcc -= dt;
       steps++;
       elapsed += dt;
-      input = demoInput(elapsed) ?? readInput();
+      const raw = demoInput(elapsed) ?? readInput();
+      const sens = getSettings().steerSensitivity;
+      input = { ...raw, steer: Math.min(1, Math.max(-1, raw.steer * sens)) };
       if (input.reset && !resetLatch) resetCar();
       resetLatch = input.reset;
 
@@ -273,6 +288,7 @@ export async function startGame(canvas: HTMLCanvasElement) {
     }
 
     const speedKmh = Math.hypot(phys.vx, phys.vz) * 3.6;
+    const units = getSettings().units;
     const angle = (slipAngle * 180) / Math.PI;
     const drifting = speedKmh > 28 && angle > 12;
     if (drifting) {
@@ -290,7 +306,12 @@ export async function startGame(canvas: HTMLCanvasElement) {
     } else {
       driftTime = 0;
     }
-    hud.speed.textContent = `${Math.round(speedKmh)}`;
+    const shown = units === "mph" ? speedKmh * 0.621371 : speedKmh;
+    hud.speed.textContent = `${Math.round(shown)}`;
+    const unitEl = document.querySelector("#unit");
+    if (unitEl) unitEl.textContent = units === "mph" ? "mph" : "km/h";
+    const hudEl = document.querySelector<HTMLElement>("#hud");
+    if (hudEl && getScreen() === "play") hudEl.hidden = !getSettings().hud;
     hud.drift.textContent = fmt(drift);
     hud.combo.textContent = drifting ? `x${combo.toFixed(1)}` : "—";
     hud.best.textContent = fmt(best);
@@ -298,11 +319,12 @@ export async function startGame(canvas: HTMLCanvasElement) {
       input.source === "pad" ? "Pad połączony" : input.source === "touch" ? "Dotyk" : input.source === "keys" ? "Klawiatura" : "Podłącz pad albo użyj dotyku";
 
     if (audio) {
+      const vol = audioScale();
       const rpm = 18 + Math.abs(vFwd) * 3.1 + input.throttle * 22;
       audio.osc.frequency.value = 38 + rpm * 3.4;
       audio.filter.frequency.value = 280 + input.throttle * 900 + Math.abs(vFwd) * 18;
-      audio.gain.gain.value = 0.012 + input.throttle * 0.03 + Math.min(0.02, Math.abs(vFwd) * 0.0004);
-      audio.squeal.gain.value = drifting ? Math.min(0.05, (angle - 12) * 0.0015) : 0;
+      audio.gain.gain.value = vol * (0.012 + input.throttle * 0.03 + Math.min(0.02, Math.abs(vFwd) * 0.0004));
+      audio.squeal.gain.value = vol * (drifting ? Math.min(0.05, (angle - 12) * 0.0015) : 0);
     }
 
     placeCar();
@@ -342,7 +364,10 @@ export async function startGame(canvas: HTMLCanvasElement) {
     } else {
       camera.up.set(0, 1, 0);
       const f = forwardOf(phys.yaw);
-      const desired = new THREE.Vector3(phys.x - f.x * 7.4 + f.z * 0.2, 2.5, phys.z - f.z * 7.4);
+      const farCam = getSettings().camera === "far";
+      const dist = farCam ? 11.5 : 6.6;
+      const camY = farCam ? 4.1 : 2.2;
+      const desired = new THREE.Vector3(phys.x - f.x * dist + f.z * 0.2, camY, phys.z - f.z * dist);
       camPos.lerp(desired, Math.min(1, 1 - Math.exp(-4 * dt * steps)));
       camera.position.copy(camPos);
       look.set(phys.x + f.x * 5, 0.8, phys.z + f.z * 5);

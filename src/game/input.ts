@@ -1,3 +1,5 @@
+import { getSettings } from "./settings";
+
 export type DriveInput = {
   throttle: number;
   brake: number;
@@ -33,12 +35,22 @@ export function steerFromDrag(dx: number) {
 
 export const touch = {
   steer: 0,
+  steering: false,
   throttle: false,
   brake: false,
   handbrake: false,
   reset: false,
   active: false,
 };
+
+let tiltSteer = 0;
+if (typeof window !== "undefined") {
+  window.addEventListener("deviceorientation", (e) => {
+    const landscape = window.innerWidth > window.innerHeight;
+    const signed = landscape ? (e.gamma ?? 0) : (e.beta ?? 0) - 40;
+    tiltSteer = Math.max(-1, Math.min(1, signed / 28));
+  });
+}
 
 function blockCallout(el: HTMLElement | null) {
   if (!el) return;
@@ -83,6 +95,7 @@ export function bindTouch(root: HTMLElement) {
     e.preventDefault();
     originX = e.clientX;
     steerPad.setPointerCapture(e.pointerId);
+    touch.steering = true;
     touch.steer = 0;
     touch.active = true;
   });
@@ -91,6 +104,7 @@ export function bindTouch(root: HTMLElement) {
   });
   const clear = () => {
     touch.steer = 0;
+    touch.steering = false;
   };
   steerPad.addEventListener("pointerup", clear);
   steerPad.addEventListener("pointercancel", clear);
@@ -136,14 +150,15 @@ export function readInput(): DriveInput {
   if (pad && (pad.throttle > 0.05 || pad.brake > 0.05 || Math.abs(pad.steer) > 0.05 || pad.handbrake || pad.reset)) {
     return pad;
   }
-  if (touch.throttle || touch.brake || touch.handbrake || touch.reset || Math.abs(touch.steer) > 0.02) {
+  const tilt = getSettings().touchLayout === "tilt" && !touch.steering ? tiltSteer : touch.steer;
+  if (touch.throttle || touch.brake || touch.handbrake || touch.reset || Math.abs(tilt) > 0.02) {
     return {
       throttle: touch.throttle ? 1 : 0,
       brake: touch.brake ? 1 : 0,
-      steer: touch.steer,
+      steer: tilt,
       handbrake: touch.handbrake,
       reset: touch.reset,
-      source: touch.active ? "touch" : "none",
+      source: "touch",
     };
   }
   const steer = (keys.has("ArrowRight") || keys.has("KeyD") ? 1 : 0) - (keys.has("ArrowLeft") || keys.has("KeyA") ? 1 : 0);

@@ -14,7 +14,7 @@
         <h1>Symulator Młodego Gniewnego</h1>
       </div>
       <div class="stats">
-        <p><span id="speed">0</span> <small>km/h</small></p>
+        <p><span id="speed">0</span> <small id="unit">km/h</small></p>
         <p>Drift <strong id="drift">0</strong> <span id="combo">—</span></p>
         <p>Rekord <strong id="best">0</strong></p>
         <p id="pad">Podłącz pad albo użyj dotyku</p>
@@ -34,6 +34,35 @@
     </div>
     <div id="screen-settings" class="sheet" hidden>
       <h2>Ustawienia</h2>
+      <label class="row">Głośność <input id="set-volume" type="range" min="0" max="100" step="1" /></label>
+      <label class="row">Wycisz <input id="set-mute" type="checkbox" /></label>
+      <div class="row">Grafika
+        <span class="choice">
+          <button type="button" data-quality="low">Niska</button>
+          <button type="button" data-quality="high">Wysoka</button>
+        </span>
+      </div>
+      <div class="row">Kamera
+        <span class="choice">
+          <button type="button" data-camera="near">Blisko</button>
+          <button type="button" data-camera="far">Daleko</button>
+        </span>
+      </div>
+      <label class="row">Czułość <input id="set-sens" type="range" min="50" max="150" step="5" /></label>
+      <div class="row">Dotyk
+        <span class="choice">
+          <button type="button" data-layout="slider">Suwak</button>
+          <button type="button" data-layout="tilt">Pochylenie</button>
+        </span>
+      </div>
+      <button id="set-tilt-permit" type="button" hidden>Pozwól na pochylenie</button>
+      <label class="row">HUD <input id="set-hud" type="checkbox" /></label>
+      <div class="row">Jednostki
+        <span class="choice">
+          <button type="button" data-units="kmh">km/h</button>
+          <button type="button" data-units="mph">mph</button>
+        </span>
+      </div>
       <button type="button" data-screen="menu">Wróć</button>
     </div>
     <div id="screen-garage" class="sheet" hidden>
