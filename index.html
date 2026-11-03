@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="pl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Symulator Młodego Gniewnego — E46</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <canvas id="view"></canvas>
+    <header id="hud">
+      <p class="kicker">Etap 1 · karoseria do akceptacji</p>
+      <h1>Symulator Młodego Gniewnego</h1>
+      <p class="sub">
+        BMW E46 sedan po liftingu (2001–2005). Angel eyes, nerki, lampy LCI — i gruz:
+        rdza, podkład na drzwiach kierowcy, dziury, taśma, trytytki.
+      </p>
+    </header>
+    <footer id="dock">
+      <p class="hint">Przeciągnij, żeby obrócić. Scroll albo gest — zoom.</p>
+      <div class="row" id="poses"></div>
+    </footer>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
