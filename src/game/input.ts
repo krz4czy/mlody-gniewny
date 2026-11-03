@@ -19,6 +19,18 @@ export function bindKeys() {
   window.addEventListener("keyup", up);
 }
 
+/** Pixels of horizontal drag, past the deadzone, that reach full lock. */
+export const STEER_DRAG_PX = 120;
+export const STEER_DEAD_PX = 14;
+
+/** Proportional steering from a finger drag. Releases auto-centre (return 0). */
+export function steerFromDrag(dx: number) {
+  const mag = Math.abs(dx);
+  if (mag <= STEER_DEAD_PX) return 0;
+  const sign = Math.sign(dx);
+  return Math.min(1, Math.max(-1, (sign * (mag - STEER_DEAD_PX)) / STEER_DRAG_PX));
+}
+
 export const touch = {
   steer: 0,
   throttle: false,
@@ -62,16 +74,17 @@ export function bindTouch(root: HTMLElement) {
   bindHold("#btn-reset", "reset");
 
   if (!steerPad) return;
+  let originX = 0;
   const move = (e: PointerEvent) => {
-    const rect = steerPad.getBoundingClientRect();
-    const x = (e.clientX - rect.left) / rect.width;
-    touch.steer = Math.min(1, Math.max(-1, (x - 0.5) * 2.1));
+    touch.steer = steerFromDrag(e.clientX - originX);
     touch.active = true;
   };
   steerPad.addEventListener("pointerdown", (e) => {
     e.preventDefault();
+    originX = e.clientX;
     steerPad.setPointerCapture(e.pointerId);
-    move(e);
+    touch.steer = 0;
+    touch.active = true;
   });
   steerPad.addEventListener("pointermove", (e) => {
     if (steerPad.hasPointerCapture(e.pointerId)) move(e);

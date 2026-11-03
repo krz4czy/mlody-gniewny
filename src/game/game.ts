@@ -168,6 +168,7 @@ export async function startGame(canvas: HTMLCanvasElement) {
     phys.vz = 0;
     phys.yawRate = 0;
     phys.steer = 0;
+    phys.steerCmd = 0;
     drift = 0;
     combo = 1;
     driftTime = 0;
