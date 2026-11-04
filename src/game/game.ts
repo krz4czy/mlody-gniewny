@@ -8,46 +8,80 @@ import { getScreen, pollPause, setScreen } from "./shell";
 import { createPhys, forwardOf, stepPhys, type Phys } from "./physics";
 import { createTrack, surfaceAt, type Track } from "./track";
 
-type AudioBits = {
-  ctx: AudioContext;
-  osc: OscillatorNode;
-  filter: BiquadFilterNode;
-  gain: GainNode;
-  squeal: GainNode;
+const SOUND = {
+  low: `${import.meta.env.BASE_URL}sounds/engine-low.mp3`,
+  high: `${import.meta.env.BASE_URL}sounds/engine-high.mp3`,
+  screech: `${import.meta.env.BASE_URL}sounds/screech.mp3`,
+  hit: `${import.meta.env.BASE_URL}sounds/hit.mp3`,
 };
 
-function makeAudio(): AudioBits | null {
+type AudioBits = {
+  ctx: AudioContext;
+  master: GainNode;
+  low: AudioBufferSourceNode;
+  high: AudioBufferSourceNode;
+  lowGain: GainNode;
+  highGain: GainNode;
+  engine: GainNode;
+  screech: AudioBufferSourceNode;
+  screechGain: GainNode;
+  hit: AudioBuffer;
+  nextHit: number;
+};
+
+async function loadBuffer(ctx: AudioContext, url: string) {
+  const data = await (await fetch(url)).arrayBuffer();
+  return ctx.decodeAudioData(data);
+}
+
+function loop(ctx: AudioContext, buffer: AudioBuffer, gain: GainNode) {
+  const src = ctx.createBufferSource();
+  src.buffer = buffer;
+  src.loop = true;
+  src.connect(gain);
+  src.start();
+  return src;
+}
+
+async function makeAudio(): Promise<AudioBits | null> {
   const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
   if (!Ctx) return null;
   const ctx = new Ctx();
-  const osc = ctx.createOscillator();
-  osc.type = "sawtooth";
-  const filter = ctx.createBiquadFilter();
-  filter.type = "lowpass";
-  filter.frequency.value = 400;
-  const gain = ctx.createGain();
-  gain.gain.value = 0;
-  osc.connect(filter);
-  filter.connect(gain);
-  gain.connect(ctx.destination);
-  osc.start();
-  const buffer = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
-  const data = buffer.getChannelData(0);
-  for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
-  const noise = ctx.createBufferSource();
-  noise.buffer = buffer;
-  noise.loop = true;
-  const bp = ctx.createBiquadFilter();
-  bp.type = "bandpass";
-  bp.frequency.value = 1600;
-  bp.Q.value = 0.7;
-  const squeal = ctx.createGain();
-  squeal.gain.value = 0;
-  noise.connect(bp);
-  bp.connect(squeal);
-  squeal.connect(ctx.destination);
-  noise.start();
-  return { ctx, osc, filter, gain, squeal };
+  await ctx.resume();
+  const [lowB, highB, screechB, hit] = await Promise.all([
+    loadBuffer(ctx, SOUND.low),
+    loadBuffer(ctx, SOUND.high),
+    loadBuffer(ctx, SOUND.screech),
+    loadBuffer(ctx, SOUND.hit),
+  ]);
+  const master = ctx.createGain();
+  master.connect(ctx.destination);
+  const lowGain = ctx.createGain();
+  const highGain = ctx.createGain();
+  const engine = ctx.createGain();
+  const screechGain = ctx.createGain();
+  screechGain.gain.value = 0;
+  lowGain.connect(engine);
+  highGain.connect(engine);
+  engine.connect(master);
+  screechGain.connect(master);
+  const low = loop(ctx, lowB, lowGain);
+  const high = loop(ctx, highB, highGain);
+  const screech = loop(ctx, screechB, screechGain);
+  return { ctx, master, low, high, lowGain, highGain, engine, screech, screechGain, hit, nextHit: 0 };
+}
+
+function playHit(audio: AudioBits) {
+  const now = audio.ctx.currentTime;
+  if (now < audio.nextHit) return;
+  audio.nextHit = now + 0.4;
+  const src = audio.ctx.createBufferSource();
+  src.buffer = audio.hit;
+  const gain = audio.ctx.createGain();
+  gain.gain.value = 0.85;
+  src.connect(gain);
+  gain.connect(audio.master);
+  src.start();
 }
 
 function smokeTexture() {
@@ -82,14 +116,14 @@ export async function startGame(canvas: HTMLCanvasElement) {
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0xb7c3ce);
-  scene.fog = new THREE.Fog(0xb7c3ce, 120, 2200);
+  scene.background = new THREE.Color(0x8eb8dc);
+  scene.fog = new THREE.Fog(0xb7d0e6, 160, 480);
   const pmrem = new THREE.PMREMGenerator(renderer);
   scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.05).texture;
 
-  const hemi = new THREE.HemisphereLight(0xd5e4f2, 0x3d4a32, 0.7);
+  const hemi = new THREE.HemisphereLight(0xd7e7f6, 0x3d5a40, 0.85);
   scene.add(hemi);
-  const sun = new THREE.DirectionalLight(0xfff3e0, 2.1);
+  const sun = new THREE.DirectionalLight(0xfff4e4, 2.35);
   sun.position.set(80, 120, 40);
   sun.castShadow = true;
   sun.shadow.mapSize.set(1024, 1024);
@@ -143,7 +177,9 @@ export async function startGame(canvas: HTMLCanvasElement) {
   let driftTime = 0;
   let best = Number(localStorage.getItem("smg-best") ?? "0") || 0;
   let audio: AudioBits | null = null;
+  let audioStarting = false;
   let resetLatch = false;
+  let onWall = false;
   let elapsed = 0;
   const camPos = new THREE.Vector3(phys.x, 6, phys.z - 12);
   const look = new THREE.Vector3();
@@ -160,7 +196,17 @@ export async function startGame(canvas: HTMLCanvasElement) {
   hud.best.textContent = fmt(best);
 
   const ensureAudio = () => {
-    if (!audio) audio = makeAudio();
+    if (!audio && !audioStarting) {
+      audioStarting = true;
+      void makeAudio()
+        .then((bits) => {
+          audio = bits;
+        })
+        .finally(() => {
+          audioStarting = false;
+        });
+      return;
+    }
     if (audio && audio.ctx.state === "suspended") void audio.ctx.resume();
   };
   window.addEventListener("pointerdown", ensureAudio, { once: true });
@@ -311,20 +357,26 @@ export async function startGame(canvas: HTMLCanvasElement) {
         phys.vx *= k;
         phys.vz *= k;
       }
-      const shove = (need: number, dir: number) => {
+      const touching = hit.outside || hit.inside;
+      if (touching && !onWall && audio) playHit(audio);
+      onWall = touching;
+      if (touching) {
+        const dir = hit.outside ? 1 : -1;
+        const limitAbs = track.halfOuter - 0.4;
+        const limit = hit.outside ? -limitAbs : limitAbs;
+        const need = Math.min(2.4, Math.abs(limit - hit.outer.signed));
         phys.x += -hit.outer.tz * need * dir;
         phys.z += hit.outer.tx * need * dir;
-        const outX = hit.outer.tz * dir;
-        const outZ = -hit.outer.tx * dir;
-        const outward = phys.vx * outX + phys.vz * outZ;
-        if (outward > 0) {
-          phys.vx -= outX * outward * 1.15;
-          phys.vz -= outZ * outward * 1.15;
-        }
-        phys.yawRate *= 0.92;
-      };
-      if (hit.outside) shove(-track.halfOuter - hit.outer.signed, 1);
-      else if (hit.inside) shove(hit.outer.signed - track.halfOuter, -1);
+        let along = Math.atan2(hit.outer.tx, hit.outer.tz);
+        if (Math.cos(phys.yaw - along) < 0) along += Math.PI;
+        const err = Math.atan2(Math.sin(along - phys.yaw), Math.cos(along - phys.yaw));
+        if (Math.abs(err) > 0.4) phys.yaw += err * Math.min(1, dt * 7);
+        const fx = Math.sin(along);
+        const fz = Math.cos(along);
+        const vTan = phys.vx * fx + phys.vz * fz;
+        phys.vx = fx * vTan;
+        phys.vz = fz * vTan;
+      }
       const fx = Math.sin(phys.yaw);
       const fz = Math.cos(phys.yaw);
       const slope = (surfaceAt(track, phys.x + fx * 2, phys.z + fz * 2).y - hit.y) / 2;
@@ -369,11 +421,17 @@ export async function startGame(canvas: HTMLCanvasElement) {
 
     if (audio) {
       const vol = audioScale();
-      const rpm = 18 + Math.abs(vFwd) * 3.1 + input.throttle * 22;
-      audio.osc.frequency.value = 38 + rpm * 3.4;
-      audio.filter.frequency.value = 280 + input.throttle * 900 + Math.abs(vFwd) * 18;
-      audio.gain.gain.value = vol * (0.012 + input.throttle * 0.03 + Math.min(0.02, Math.abs(vFwd) * 0.0004));
-      audio.squeal.gain.value = vol * (drifting ? Math.min(0.05, (angle - 12) * 0.0015) : 0);
+      const speed = Math.abs(vFwd);
+      const drive = Math.min(1, speed / 32 + input.throttle * 0.35);
+      audio.master.gain.value = vol;
+      audio.low.playbackRate.value = 0.78 + drive * 0.55;
+      audio.high.playbackRate.value = 0.9 + drive * 0.75;
+      const blend = Math.min(1, Math.max(0, (speed - 6) / 26));
+      audio.lowGain.gain.value = 1 - blend;
+      audio.highGain.gain.value = blend;
+      audio.engine.gain.value = 0.22 + input.throttle * 0.62 + Math.min(0.2, speed * 0.008);
+      const squeal = speedKmh > 16 ? Math.min(1, Math.max(0, (angle - 8) / 26)) : 0;
+      audio.screechGain.gain.value = squeal * 0.7;
     }
 
     placeCar();

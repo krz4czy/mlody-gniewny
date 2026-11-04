@@ -90,6 +90,7 @@ export function bindTouch(root: HTMLElement) {
   const move = (e: PointerEvent) => {
     touch.steer = steerFromDrag(e.clientX - originX);
     touch.active = true;
+    steerPad.style.setProperty("--steer", touch.steer.toFixed(3));
   };
   steerPad.addEventListener("pointerdown", (e) => {
     e.preventDefault();
@@ -105,6 +106,7 @@ export function bindTouch(root: HTMLElement) {
   const clear = () => {
     touch.steer = 0;
     touch.steering = false;
+    steerPad.style.setProperty("--steer", "0");
   };
   steerPad.addEventListener("pointerup", clear);
   steerPad.addEventListener("pointercancel", clear);

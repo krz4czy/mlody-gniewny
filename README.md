@@ -1,8 +1,6 @@
 # Symulator Młodego Gniewnego
 
-Drift po **Torze Kielce** (Miedziana Góra). Auto to czysty **BMW M3 Coupe (E46)** — model [Mona x Supercars](https://sketchfab.com/Car2022), [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
-
-Oś toru pochodzi z OpenStreetMap (© OpenStreetMap contributors, ODbL). Szczegóły w `LICENSES.md`.
+Drift po własnym torze. Auto to **BMW M3 Coupe (E46)** — model [Mona x Supercars](https://sketchfab.com/Car2022), [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Dźwięki są CC0. Szczegóły w `LICENSES.md`.
 
 ## Sterowanie
 

@@ -1,7 +1,4 @@
 import * as THREE from "three";
-import layout from "./kielce.json";
-
-type Pt = [number, number];
 
 type Frame = {
   x: number;
@@ -15,69 +12,89 @@ type Frame = {
 
 export type Track = {
   group: THREE.Group;
-  outer: Pt[];
-  extras: Pt[][];
+  outer: [number, number][];
+  extras: [number, number][][];
   frames: Frame[];
   halfOuter: number;
   halfExtra: number;
   start: { x: number; z: number; yaw: number };
 };
 
-const HALF_OUTER = 9;
-const HALF_EXTRA = 7;
+const HALF = 14;
+let grassFloor = -8;
 
-export function terrainY(x: number, z: number) {
-  return Math.sin(x * 0.011) * 2.6 + Math.cos(z * 0.009) * 2.2 + Math.sin((x + z) * 0.0055) * 1.8;
-}
-
-function hill(s: number) {
-  return Math.sin(s * 0.016) * 3.4 + Math.sin(s * 0.0065 + 0.8) * 5.2;
-}
-
-function buildFrames(points: Pt[]) {
-  const n = points.length;
-  const closed = Math.hypot(points[0][0] - points[n - 1][0], points[0][1] - points[n - 1][1]) < 1.2;
-  const count = closed ? n - 1 : n;
-  const dist: number[] = [0];
-  for (let i = 1; i < count; i++) {
-    dist[i] = dist[i - 1] + Math.hypot(points[i][0] - points[i - 1][0], points[i][1] - points[i - 1][1]);
+/** Stadium with 58 m corners and a gentle weave on one straight. */
+function ovalSamples() {
+  const R = 58;
+  const L = 160;
+  const straight = 24;
+  const arc = 40;
+  const out: { x: number; z: number }[] = [];
+  for (let i = 0; i < straight; i++) {
+    const x = -L / 2 + (L * i) / straight;
+    const weave = Math.sin((i / straight) * Math.PI) ** 2 * 8;
+    out.push({ x, z: -R + weave });
   }
+  for (let i = 0; i < arc; i++) {
+    const a = -Math.PI / 2 + (Math.PI * i) / arc;
+    out.push({ x: L / 2 + Math.cos(a) * R, z: Math.sin(a) * R });
+  }
+  for (let i = 0; i < straight; i++) {
+    const x = L / 2 - (L * i) / straight;
+    out.push({ x, z: R });
+  }
+  for (let i = 0; i < arc; i++) {
+    const a = Math.PI / 2 + (Math.PI * i) / arc;
+    out.push({ x: -L / 2 + Math.cos(a) * R, z: Math.sin(a) * R });
+  }
+  return out;
+}
+
+function buildFrames(samples: { x: number; z: number }[]) {
+  const n = samples.length;
+  const dist = [0];
+  for (let i = 1; i < n; i++) dist[i] = dist[i - 1] + Math.hypot(samples[i].x - samples[i - 1].x, samples[i].z - samples[i - 1].z);
+  const lap = dist[n - 1] + Math.hypot(samples[0].x - samples[n - 1].x, samples[0].z - samples[n - 1].z);
   const frames: Frame[] = [];
-  for (let i = 0; i < count; i++) {
-    const prev = points[(i - 1 + count) % count];
-    const next = points[(i + 1) % count];
-    const cur = points[i];
-    let tx = next[0] - prev[0];
-    let tz = next[1] - prev[1];
+  for (let i = 0; i < n; i++) {
+    const prev = samples[(i - 1 + n) % n];
+    const next = samples[(i + 1) % n];
+    const cur = samples[i];
+    let tx = next.x - prev.x;
+    let tz = next.z - prev.z;
     const len = Math.hypot(tx, tz) || 1;
     tx /= len;
     tz /= len;
-    const h0 = Math.atan2(cur[0] - prev[0], cur[1] - prev[1]);
-    const h1 = Math.atan2(next[0] - cur[0], next[1] - cur[1]);
+    const h0 = Math.atan2(cur.x - prev.x, cur.z - prev.z);
+    const h1 = Math.atan2(next.x - cur.x, next.z - cur.z);
     const turn = Math.atan2(Math.sin(h1 - h0), Math.cos(h1 - h0));
-    const bank = Math.max(-0.16, Math.min(0.16, -turn * 1.8));
+    const u = dist[i] / lap;
+    const y = 5.2 * Math.sin(u * Math.PI * 2) + 2.1 * Math.sin(u * Math.PI * 4 + 0.4);
     frames.push({
-      x: cur[0],
-      z: cur[1],
-      y: terrainY(cur[0], cur[1]) + hill(dist[i]),
+      x: cur.x,
+      z: cur.z,
+      y,
       tx,
       tz,
-      bank,
+      bank: Math.max(-0.1, Math.min(0.1, -turn * 1.4)),
       s: dist[i],
     });
   }
   return frames;
 }
 
-function road(frames: Frame[], half: number, color: number, lift = 0.08): THREE.Mesh {
+function pointAt(f: Frame, lateral: number, extraY = 0) {
+  return new THREE.Vector3(f.x - f.tz * lateral, f.y + Math.sin(f.bank) * lateral + extraY, f.z + f.tx * lateral);
+}
+
+function ribbon(frames: Frame[], d0: number, d1: number, y0: number, y1: number, material: THREE.Material) {
   const n = frames.length;
   const verts: number[] = [];
   const idx: number[] = [];
   for (const f of frames) {
-    const nx = -f.tz * half;
-    const nz = f.tx * half;
-    const bankLift = Math.sin(f.bank) * half;
-    verts.push(f.x + nx, f.y + bankLift + lift, f.z + nz, f.x - nx, f.y - bankLift + lift, f.z - nz);
+    const a = pointAt(f, d0, y0);
+    const b = pointAt(f, d1, y1);
+    verts.push(a.x, a.y, a.z, b.x, b.y, b.z);
   }
   for (let i = 0; i < n; i++) {
     const a = i * 2;
@@ -88,125 +105,98 @@ function road(frames: Frame[], half: number, color: number, lift = 0.08): THREE.
   geo.setAttribute("position", new THREE.Float32BufferAttribute(verts, 3));
   geo.setIndex(idx);
   geo.computeVertexNormals();
-  const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color, roughness: 0.92, metalness: 0 }));
+  const mesh = new THREE.Mesh(geo, material);
   mesh.receiveShadow = true;
   return mesh;
 }
 
-function flatRibbon(points: Pt[], half: number, color: number) {
-  const frames = points.map((p, i) => {
-    const prev = points[Math.max(0, i - 1)];
-    const next = points[Math.min(points.length - 1, i + 1)];
-    let tx = next[0] - prev[0];
-    let tz = next[1] - prev[1];
-    const len = Math.hypot(tx, tz) || 1;
-    tx /= len;
-    tz /= len;
-    return { x: p[0], z: p[1], y: terrainY(p[0], p[1]) + 0.2, tx, tz, bank: 0, s: 0 };
-  });
-  return road(frames, half, color, 0.04);
-}
-
-function barriers(frames: Frame[], side: 1 | -1) {
-  const n = frames.length;
-  const geo = new THREE.BoxGeometry(1, 0.72, 0.22);
-  const mat = new THREE.MeshStandardMaterial({ color: side > 0 ? 0xd5d0c6 : 0xc5bfb4, roughness: 0.62, metalness: 0.2 });
-  const mesh = new THREE.InstancedMesh(geo, mat, n);
+function addScenery(group: THREE.Group, frames: Frame[], grassY: number) {
+  const poleGeo = new THREE.CylinderGeometry(0.12, 0.16, 7, 6);
+  const lampGeo = new THREE.SphereGeometry(0.38, 8, 6);
+  const poleMat = new THREE.MeshStandardMaterial({ color: 0x2c3138, roughness: 0.6, metalness: 0.3 });
+  const lampMat = new THREE.MeshStandardMaterial({ color: 0xfff1c9, emissive: 0x6a5430, roughness: 0.4 });
+  const poles = new THREE.InstancedMesh(poleGeo, poleMat, Math.ceil(frames.length / 8));
+  const lamps = new THREE.InstancedMesh(lampGeo, lampMat, poles.count);
   const dummy = new THREE.Object3D();
-  for (let i = 0; i < n; i++) {
-    const a = frames[i];
-    const b = frames[(i + 1) % n];
-    const tx = b.x - a.x;
-    const tz = b.z - a.z;
-    const len = Math.hypot(tx, tz) || 1;
-    const nx = -tz / len;
-    const nz = tx / len;
-    const bank = (a.bank + b.bank) / 2;
-    const inset = HALF_OUTER + 0.35;
-    const edgeY = (a.y + b.y) / 2 + Math.sin(bank) * inset * side + 0.1;
-    dummy.position.set((a.x + b.x) / 2 + nx * inset * side, edgeY + 0.36, (a.z + b.z) / 2 + nz * inset * side);
-    dummy.rotation.set(0, Math.atan2(-tz, tx), 0);
-    dummy.scale.set(len * 1.08, 1, 1);
+  let pi = 0;
+  for (let i = 0; i < frames.length && pi < poles.count; i += 8) {
+    const f = frames[i];
+    const d = HALF + 6.5;
+    dummy.position.set(f.x - f.tz * d, f.y + 3.5, f.z + f.tx * d);
+    dummy.rotation.set(0, 0, 0);
+    dummy.scale.set(1, 1, 1);
     dummy.updateMatrix();
-    mesh.setMatrixAt(i, dummy.matrix);
+    poles.setMatrixAt(pi, dummy.matrix);
+    dummy.position.y = f.y + 7.1;
+    dummy.updateMatrix();
+    lamps.setMatrixAt(pi, dummy.matrix);
+    pi++;
   }
-  mesh.instanceMatrix.needsUpdate = true;
-  mesh.castShadow = true;
-  mesh.receiveShadow = true;
-  return mesh;
-}
+  poles.count = pi;
+  lamps.count = pi;
+  group.add(poles, lamps);
 
-function terrain() {
-  const geo = new THREE.PlaneGeometry(1700, 1400, 40, 32);
-  geo.rotateX(-Math.PI / 2);
-  const pos = geo.attributes.position;
-  const ox = -30;
-  const oz = -165;
-  for (let i = 0; i < pos.count; i++) {
-    const x = pos.getX(i) + ox;
-    const z = pos.getZ(i) + oz;
-    pos.setY(i, terrainY(x, z) - 0.45);
+  const trunk = new THREE.CylinderGeometry(0.25, 0.4, 2.2, 5);
+  const crown = new THREE.ConeGeometry(1.7, 3.4, 6);
+  const trunkMat = new THREE.MeshStandardMaterial({ color: 0x5a4636, roughness: 1 });
+  const crownMat = new THREE.MeshStandardMaterial({ color: 0x2f6b3a, roughness: 1 });
+  const treeCount = 32;
+  const trunks = new THREE.InstancedMesh(trunk, trunkMat, treeCount);
+  const crowns = new THREE.InstancedMesh(crown, crownMat, treeCount);
+  for (let i = 0; i < treeCount; i++) {
+    const a = (i / treeCount) * Math.PI * 2 + 0.2;
+    const r = 168 + (i % 3) * 8;
+    dummy.position.set(Math.cos(a) * r, grassY + 1.1, Math.sin(a) * r);
+    dummy.rotation.set(0, a, 0);
+    dummy.scale.set(1, 1, 1);
+    dummy.updateMatrix();
+    trunks.setMatrixAt(i, dummy.matrix);
+    dummy.position.y = grassY + 3.4;
+    dummy.updateMatrix();
+    crowns.setMatrixAt(i, dummy.matrix);
   }
-  geo.computeVertexNormals();
-  const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: 0x3d5a38, roughness: 1 }));
-  mesh.position.set(ox, 0, oz);
-  mesh.receiveShadow = true;
-  return mesh;
-}
+  group.add(trunks, crowns);
 
-export function createTrack() {
-  const outer = layout.outer as Pt[];
-  const extras = layout.extras as Pt[][];
-  const frames = buildFrames(outer);
-  const group = new THREE.Group();
-  group.name = "circuit";
-  group.add(terrain());
-  group.add(road(frames, HALF_OUTER + 1.1, 0x3a3d42, 0.02));
-  for (const line of extras) group.add(flatRibbon(line, HALF_EXTRA, 0x454952));
-  group.add(barriers(frames, 1));
-  group.add(barriers(frames, -1));
-  const line = road(frames, 0.16, 0xffffff, 0.12);
-  line.material = new THREE.MeshBasicMaterial({ color: 0xe8e4d4 });
-  group.add(line);
-  return {
-    group,
-    outer,
-    extras,
-    frames,
-    halfOuter: HALF_OUTER,
-    halfExtra: HALF_EXTRA,
-    start: layout.start,
-  } satisfies Track;
-}
+  const box = new THREE.MeshStandardMaterial({ color: 0xb4532a, roughness: 0.8 });
+  const containers = new THREE.InstancedMesh(new THREE.BoxGeometry(2.4, 2.5, 6), box, 6);
+  for (let i = 0; i < 6; i++) {
+    const f = frames[(40 + i * 3) % frames.length];
+    const d = HALF + 10 + (i % 2) * 3;
+    dummy.position.set(f.x - f.tz * d, grassY + 1.25, f.z + f.tx * d);
+    dummy.rotation.set(0, Math.atan2(f.tx, f.tz), 0);
+    dummy.scale.set(1, 1, 1);
+    dummy.updateMatrix();
+    containers.setMatrixAt(i, dummy.matrix);
+  }
+  group.add(containers);
 
-export function nearestOn(points: Pt[], x: number, z: number) {
-  let best = 1e9;
-  let signed = 0;
-  let nx = 0;
-  let nz = 1;
-  const n = points.length - 1;
-  for (let i = 0; i < n; i++) {
-    const a = points[i];
-    const b = points[i + 1];
-    const abx = b[0] - a[0];
-    const abz = b[1] - a[1];
-    const len2 = abx * abx + abz * abz || 1;
-    let t = ((x - a[0]) * abx + (z - a[1]) * abz) / len2;
-    t = Math.min(1, Math.max(0, t));
-    const px = a[0] + abx * t;
-    const pz = a[1] + abz * t;
-    const dx = x - px;
-    const dz = z - pz;
-    const d = Math.hypot(dx, dz);
-    if (d < best) {
-      best = d;
-      const len = Math.sqrt(len2);
-      nx = abx / len;
-      nz = abz / len;
-      signed = nx * dz - nz * dx;
+  const tyre = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.55, 0.55, 0.28, 8), new THREE.MeshStandardMaterial({ color: 0x1c1c1c, roughness: 0.95 }), 16);
+  let ti = 0;
+  for (const at of [12, 70]) {
+    const f = frames[at % frames.length];
+    for (let k = 0; k < 4; k++) {
+      dummy.position.set(f.x - f.tz * (HALF + 2.2), f.y + 0.2 + k * 0.28, f.z + f.tx * (HALF + 2.2));
+      dummy.rotation.set(0, 0, 0);
+      dummy.updateMatrix();
+      tyre.setMatrixAt(ti++, dummy.matrix);
+      dummy.position.set(f.x - f.tz * (HALF + 3.3), f.y + 0.2 + k * 0.28, f.z + f.tx * (HALF + 3.3));
+      dummy.updateMatrix();
+      tyre.setMatrixAt(ti++, dummy.matrix);
     }
   }
-  return { dist: best, signed, tx: nx, tz: nz };
+  group.add(tyre);
+
+  const stand = new THREE.Group();
+  const f = frames[Math.floor(frames.length * 0.02)];
+  const base = new THREE.Mesh(new THREE.BoxGeometry(16, 3.2, 6), new THREE.MeshStandardMaterial({ color: 0x243044, roughness: 0.7 }));
+  base.position.set(f.x - f.tz * (HALF + 12), grassY + 1.6, f.z + f.tx * (HALF + 12));
+  base.rotation.y = Math.atan2(f.tx, f.tz);
+  const roof = new THREE.Mesh(new THREE.BoxGeometry(16.5, 0.35, 7), new THREE.MeshStandardMaterial({ color: 0xd7dde6, roughness: 0.5 }));
+  roof.position.copy(base.position);
+  roof.position.y = grassY + 4.2;
+  roof.rotation.y = base.rotation.y;
+  stand.add(base, roof);
+  group.add(stand);
 }
 
 function nearestFrame(frames: Frame[], x: number, z: number) {
@@ -227,15 +217,13 @@ function nearestFrame(frames: Frame[], x: number, z: number) {
     t = Math.min(1, Math.max(0, t));
     const px = a.x + abx * t;
     const pz = a.z + abz * t;
-    const dx = x - px;
-    const dz = z - pz;
-    const d = Math.hypot(dx, dz);
+    const d = Math.hypot(x - px, z - pz);
     if (d < best) {
       best = d;
       const len = Math.sqrt(len2);
       tx = abx / len;
       tz = abz / len;
-      signed = tx * dz - tz * dx;
+      signed = tx * (z - pz) - tz * (x - px);
       y = a.y + (b.y - a.y) * t;
       bank = a.bank + (b.bank - a.bank) * t;
     }
@@ -243,28 +231,63 @@ function nearestFrame(frames: Frame[], x: number, z: number) {
   return { dist: best, signed, tx, tz, y, bank };
 }
 
+export function createTrack() {
+  const samples = ovalSamples();
+  const frames = buildFrames(samples);
+  const grassY = Math.min(...frames.map((f) => f.y)) - 1.2;
+  grassFloor = grassY;
+  const group = new THREE.Group();
+  group.name = "drift-arena";
+
+  const grass = new THREE.Mesh(
+    new THREE.CircleGeometry(240, 48),
+    new THREE.MeshStandardMaterial({ color: 0x3e6b45, roughness: 1 }),
+  );
+  grass.rotation.x = -Math.PI / 2;
+  grass.position.y = grassY;
+  grass.receiveShadow = true;
+  group.add(grass);
+
+  const asphalt = new THREE.MeshStandardMaterial({ color: 0x3c4148, roughness: 0.92, side: THREE.DoubleSide });
+  const curb = new THREE.MeshStandardMaterial({ color: 0xded8cc, roughness: 0.8, side: THREE.DoubleSide });
+  const wallMat = new THREE.MeshStandardMaterial({ color: 0xe6e1d6, roughness: 0.55, metalness: 0.05, side: THREE.DoubleSide });
+  const lineMat = new THREE.MeshBasicMaterial({ color: 0xf4f0e6, side: THREE.DoubleSide });
+  lineMat.polygonOffset = true;
+  lineMat.polygonOffsetFactor = -1;
+  lineMat.polygonOffsetUnits = -1;
+
+  group.add(ribbon(frames, -HALF, HALF, 0.02, 0.02, asphalt));
+  group.add(ribbon(frames, HALF, HALF + 0.85, 0.02, 0.28, curb));
+  group.add(ribbon(frames, -HALF, -(HALF + 0.85), 0.02, 0.28, curb));
+  group.add(ribbon(frames, HALF + 0.7, HALF + 1.05, 0.28, 1.15, wallMat));
+  group.add(ribbon(frames, -(HALF + 0.7), -(HALF + 1.05), 0.28, 1.15, wallMat));
+  group.add(ribbon(frames, -0.16, 0.16, 0.05, 0.05, lineMat));
+  addScenery(group, frames, grassY);
+
+  const f0 = frames[0];
+  return {
+    group,
+    outer: frames.map((f) => [f.x, f.z] as [number, number]),
+    extras: [],
+    frames,
+    halfOuter: HALF - 0.9,
+    halfExtra: 0,
+    start: { x: f0.x, z: f0.z, yaw: Math.atan2(f0.tx, f0.tz) },
+  } satisfies Track;
+}
+
 export function surfaceAt(track: Track, x: number, z: number) {
   const outer = nearestFrame(track.frames, x, z);
-  let onAsphalt = Math.abs(outer.signed) <= track.halfOuter;
-  let onExtra = false;
-  if (!onAsphalt) {
-    for (const line of track.extras) {
-      if (nearestOn(line, x, z).dist < track.halfExtra) {
-        onAsphalt = true;
-        onExtra = true;
-        break;
-      }
-    }
-  }
-  const lateral = Math.max(-track.halfOuter, Math.min(track.halfOuter, outer.signed));
+  const limit = track.halfOuter;
+  const lateral = Math.max(-HALF, Math.min(HALF, outer.signed));
   const roadY = outer.y + Math.sin(outer.bank) * lateral;
-  const y = onExtra ? terrainY(x, z) + 0.25 : onAsphalt ? roadY : terrainY(x, z);
+  const onAsphalt = Math.abs(outer.signed) <= HALF + 0.6;
   return {
     onAsphalt,
-    onExtra,
-    outside: !onExtra && outer.signed < -track.halfOuter,
-    inside: !onExtra && outer.signed > track.halfOuter,
+    onExtra: false,
+    outside: outer.signed < -limit,
+    inside: outer.signed > limit,
     outer,
-    y,
+    y: Math.abs(outer.signed) < HALF + 8 ? roadY : grassFloor,
   };
 }
